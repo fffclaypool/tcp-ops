@@ -77,5 +77,5 @@ struct tcphdr {
 <img width="750" alt="スクリーンショット 2021-08-28 19 58 32" src="https://user-images.githubusercontent.com/43327056/131242365-b3c27eb6-90f4-404d-bc29-13a3fb157f42.png">
 
 ### Reference
-- [TCP/IPネットワーク実験プログラミング](https://www.amazon.co.jp/dp/B08BR75XYY)
+- [TCP/IPネットワーク実験プログラミング](https://www.amazon.co.jp/dp/B08BR75XYY) - 第8章
 - https://www.infraexpert.com/study/tcpip8.html
